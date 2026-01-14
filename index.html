@@ -7,20 +7,29 @@
 <body>
   <h2>아크릴 주문 상담</h2>
 
-  <div id="chat" style="border:1px solid #ccc; height:300px; overflow:auto; padding:10px;"></div>
+  <div
+    id="chat"
+    style="border:1px solid #ccc; height:300px; overflow:auto; padding:10px;"
+  ></div>
 
-  <input id="input" placeholder="예: 투명 150x150 5t 2개" style="width:80%;"
-         onkeydown="if(event.key==='Enter') send();">
+  <input
+    id="input"
+    placeholder="예: 투명 150x150 5T 2개"
+    style="width:80%;"
+    onkeydown="if(event.key==='Enter') send();"
+  >
   <button onclick="send()">전송</button>
 
   <script>
-    // 🔹 대화 기록 (필수)
+    /***********************
+     * 1. 대화 기록
+     ***********************/
     const messages = [];
 
-    // 🔹 인사 여부 (필수)
-    let greeted = false;
-
-    // 🔹 주문 상태 (필수)
+    /***********************
+     * 2. 주문 상태 (지금은 껍데기)
+     * 다음 단계에서 자동 파싱 예정
+     ***********************/
     const orderState = {
       colorType: null,
       thickness: null,
@@ -29,17 +38,38 @@
       quantity: null
     };
 
+    /***********************
+     * 3. 인사 출력 (딱 1번)
+     * ❗ GPT에게 인사 시키지 않음
+     ***********************/
+    const chat = document.getElementById("chat");
+    chat.innerHTML += `
+      <div><b>상담원:</b>
+        안녕하세요. 아트센 입니다. 아크릴판 주문을 도와드리겠습니다.
+      </div>
+    `;
+
+    let greeted = true; // 이미 인사 완료 상태
+
+    /***********************
+     * 4. 메시지 전송 함수
+     ***********************/
     async function send() {
       const input = document.getElementById("input");
-      const chat = document.getElementById("chat");
       const text = input.value.trim();
       if (!text) return;
 
+      // 사용자 메시지 출력
       chat.innerHTML += `<div><b>나:</b> ${text}</div>`;
       input.value = "";
 
-      messages.push({ role: "user", content: text });
+      // 대화 기록 누적
+      messages.push({
+        role: "user",
+        content: text
+      });
 
+      // 서버 호출
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,15 +82,15 @@
 
       const data = await res.json();
 
+      // 상담원 응답 출력
       chat.innerHTML += `<div><b>상담원:</b> ${data.reply}</div>`;
       chat.scrollTop = chat.scrollHeight;
 
-      messages.push({ role: "assistant", content: data.reply });
-
-      // 🔹 첫 응답 이후엔 인사 완료로 처리
-      if (!greeted) {
-        greeted = true;
-      }
+      // 상담원 응답도 히스토리에 추가
+      messages.push({
+        role: "assistant",
+        content: data.reply
+      });
     }
   </script>
 </body>
