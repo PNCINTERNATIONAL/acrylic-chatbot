@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>아크릴 주문 상담</title>
+</head>
+<body>
+  <h2>아크릴 주문 상담</h2>
+
+  <div id="chat" style="border:1px solid #ccc; height:300px; overflow:auto; padding:10px;"></div>
+
+  <input id="input" placeholder="예: 투명 아크릴 150x150 5t 2개" style="width:80%;">
+  <button onclick="send()">전송</button>
+
+  <script>
+    async function send() {
+      const input = document.getElementById("input");
+      const chat = document.getElementById("chat");
+
+      const text = input.value;
+      if (!text) return;
+
+      chat.innerHTML += `<div><b>나:</b> ${text}</div>`;
+      input.value = "";
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text })
+      });
+
+      const data = await res.json();
+      chat.innerHTML += `<div><b>상담원:</b> ${data.reply}</div>`;
+      chat.scrollTop = chat.scrollHeight;
+    }
+  </script>
+</body>
+</html>
