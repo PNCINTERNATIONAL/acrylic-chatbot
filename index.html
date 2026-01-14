@@ -1,4 +1,3 @@
-<!-- VERSION: 2026-01-14-PROD-TEST -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -10,32 +9,128 @@
 
   <div id="chat" style="border:1px solid #ccc; height:300px; overflow:auto; padding:10px;"></div>
 
-  <input id="input" placeholder="예: 투명 아크릴 150x150 5t 2개" style="width:80%;"
+  <input id="input" placeholder="예: 투명 100x100 3T 2개" style="width:80%;"
          onkeydown="if(event.key==='Enter') send();">
   <button onclick="send()">전송</button>
 
   <script>
-    // ✅ 대화 히스토리(핵심)
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("input");
+
+    // ✅ 0) 인사는 화면(UI)에서 딱 1번만
+    chat.innerHTML += `<div><b>상담원:</b> 안녕하세요. 아트센 입니다. 아크릴판 주문을 도와드리겠습니다.</div>`;
+
+    // ✅ 1) 대화 히스토리(서버로 보낼 것)
     const messages = [];
 
-    async function send() {
-      const input = document.getElementById("input");
-      const chat = document.getElementById("chat");
+    // ✅ 2) 주문 상태(프론트에서 자동으로 채움)
+    const orderState = {
+      colorType: null,
+      thickness: null, // 숫자 (예: 3)
+      width: null,     // 숫자 (mm)
+      length: null,    // 숫자 (mm)
+      quantity: null   // 숫자
+    };
 
+    const COLOR_LIST = [
+      "불투명 블랙",
+      "불투명 화이트",
+      "투명 블랙",
+      "투명 블루",
+      "투명 오렌지",
+      "투명"
+    ];
+
+    function normalize(t) {
+      return t
+        .replaceAll("투몀", "투명")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    // ✅ 핵심: 사용자 입력 한 줄에서 최대한 뽑아내서 orderState에 누적
+    function updateOrderStateFromText(rawText) {
+      const t = normalize(rawText);
+
+      // (A) 색상: 긴 것부터 매칭되게 COLOR_LIST를 위처럼 배치
+      for (const c of COLOR_LIST) {
+        if (t.includes(c)) {
+          orderState.colorType = c;
+          break;
+        }
+      }
+      // “투명 아크릴” 같은 말도 처리
+      if (!orderState.colorType && t.includes("투명")) orderState.colorType = "투명";
+
+      // (B) 두께: 3T / 3t / 3mm 등
+      // - "3T" 패턴 우선
+      let m = t.match(/(\d+)\s*[tT]\b/);
+      if (m) orderState.thickness = parseInt(m[1], 10);
+      // - "3mm" 패턴
+      if (!orderState.thickness) {
+        m = t.match(/(\d+)\s*mm\b/i);
+        if (m) orderState.thickness = parseInt(m[1], 10);
+      }
+
+      // (C) 사이즈: 100x100 / 100X100 / 100*100 / 100 x 100
+      m = t.match(/(\d+)\s*[xX\*]\s*(\d+)/);
+      if (m) {
+        orderState.width = parseInt(m[1], 10);
+        orderState.length = parseInt(m[2], 10);
+      }
+
+      // (D) 수량: 2개 / 2장
+      m = t.match(/(\d+)\s*(개|장)\b/);
+      if (m) orderState.quantity = parseInt(m[1], 10);
+
+      // (E) “숫자만” 입력했을 때(대화 흐름 보정)
+      // 예: 사용자가 "3"만 입력 → 두께로 채우는 경우가 많음
+      // 예: "100x100" 뒤에 "1" → 수량일 확률 큼
+      if (/^\d+$/.test(t)) {
+        const n = parseInt(t, 10);
+
+        // 아직 두께가 없으면 두께로
+        if (!orderState.thickness) {
+          orderState.thickness = n;
+          return;
+        }
+
+        // 가로/세로가 아직 없으면 순서대로 채움
+        if (!orderState.width) {
+          orderState.width = n;
+          return;
+        }
+        if (!orderState.length) {
+          orderState.length = n;
+          return;
+        }
+
+        // 마지막으로 수량
+        if (!orderState.quantity) {
+          orderState.quantity = n;
+          return;
+        }
+      }
+    }
+
+    async function send() {
       const text = input.value.trim();
       if (!text) return;
 
       chat.innerHTML += `<div><b>나:</b> ${text}</div>`;
       input.value = "";
 
-      // ✅ 유저 메시지를 누적
+      // ✅ 프론트에서 상태 누적
+      updateOrderStateFromText(text);
+
+      // ✅ 히스토리 누적
       messages.push({ role: "user", content: text });
 
-      // ✅ 서버로 messages를 보냄 (message ❌)
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages })
+        // ✅ message ❌, messages ✅
+        body: JSON.stringify({ messages, orderState })
       });
 
       const data = await res.json();
@@ -43,7 +138,6 @@
       chat.innerHTML += `<div><b>상담원:</b> ${data.reply}</div>`;
       chat.scrollTop = chat.scrollHeight;
 
-      // ✅ 상담원 답변도 누적
       messages.push({ role: "assistant", content: data.reply });
     }
   </script>
