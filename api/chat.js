@@ -6,21 +6,19 @@ const client = new OpenAI({
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    res.status(405).json({ error: "POST 요청만 가능합니다." });
-    return;
-  }
-
-  const { message } = req.body;
-
-  if (!message) {
-    res.status(400).json({ error: "메시지가 없습니다." });
-    return;
+    return res.status(405).json({ error: "POST 요청만 가능합니다." });
   }
 
   try {
-    const completion = await client.chat.completions.create({
+    const { message } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ error: "메시지가 없습니다." });
+    }
+
+    const response = await client.responses.create({
       model: "gpt-4.1-mini",
-      messages: [
+      input: [
         {
           role: "system",
           content: `
@@ -269,10 +267,19 @@ https://smartstore.naver.com/artsen/products/6687679653
       ]
     });
 
-    res.status(200).json({
-      reply: completion.choices[0].message.content
+    const outputText =
+      response.output_text ||
+      response.output?.[0]?.content?.[0]?.text ||
+      "";
+
+    return res.status(200).json({
+      reply: outputText
     });
+
   } catch (error) {
-    res.status(500).json({ error: "서버 오류 발생" });
+    console.error("OpenAI API Error:", error);
+    return res.status(500).json({
+      error: "OpenAI 응답 오류"
+    });
   }
 }
