@@ -7,29 +7,23 @@
 <body>
   <h2>아크릴 주문 상담</h2>
 
-  <div
-    id="chat"
-    style="border:1px solid #ccc; height:300px; overflow:auto; padding:10px;"
-  ></div>
+  <div id="chat" style="border:1px solid #ccc; height:300px; overflow:auto; padding:10px;"></div>
 
-  <input
-    id="input"
-    placeholder="예: 투명 150x150 5T 2개"
-    style="width:80%;"
-    onkeydown="if(event.key==='Enter') send();"
-  >
+  <input id="input" placeholder="예: 투명 150x150 5T 2개" style="width:80%;"
+         onkeydown="if(event.key==='Enter') send();">
   <button onclick="send()">전송</button>
 
   <script>
-    /***********************
-     * 1. 대화 기록
-     ***********************/
+    const chat = document.getElementById("chat");
     const messages = [];
 
-    /***********************
-     * 2. 주문 상태 (지금은 껍데기)
-     * 다음 단계에서 자동 파싱 예정
-     ***********************/
+    // ✅ 인사는 프론트에서 딱 1번만 출력
+    chat.innerHTML += `<div><b>상담원:</b> 안녕하세요. 아트센 입니다. 아크릴판 주문을 도와드리겠습니다.</div>`;
+
+    // ✅ 서버에 "이미 인사 완료"라고 고정해서 보냄
+    const greeted = true;
+
+    // ✅ 주문 상태(프론트에서 자동 업데이트)
     const orderState = {
       colorType: null,
       thickness: null,
@@ -38,38 +32,67 @@
       quantity: null
     };
 
-    /***********************
-     * 3. 인사 출력 (딱 1번)
-     * ❗ GPT에게 인사 시키지 않음
-     ***********************/
-    const chat = document.getElementById("chat");
-    chat.innerHTML += `
-      <div><b>상담원:</b>
-        안녕하세요. 아트센 입니다. 아크릴판 주문을 도와드리겠습니다.
-      </div>
-    `;
+    const COLOR_LIST = [
+      "투명",
+      "불투명 블랙",
+      "불투명 화이트",
+      "투명 블랙",
+      "투명 블루",
+      "투명 오렌지"
+    ];
 
-    let greeted = true; // 이미 인사 완료 상태
+    function normalizeText(t) {
+      return t
+        .replaceAll("투몀", "투명")
+        .replaceAll("투명아크릴", "투명")
+        .trim();
+    }
 
-    /***********************
-     * 4. 메시지 전송 함수
-     ***********************/
+    // ✅ 사용자가 한 줄씩 쳐도 orderState가 누적되게 파싱
+    function updateOrderStateFromText(text) {
+      const t = normalizeText(text);
+
+      // 색상
+      for (const c of COLOR_LIST) {
+        if (t.includes(c)) {
+          orderState.colorType = c;
+          break;
+        }
+      }
+      // "투명 아크릴" 같이 말해도 잡히게
+      if (!orderState.colorType && t.includes("투명")) orderState.colorType = "투명";
+
+      // 두께: 3T, 3t, 5T 등
+      const th = t.match(/(\d+)\s*[tT]\b/);
+      if (th) orderState.thickness = parseInt(th[1], 10);
+
+      // 사이즈: 100x140 / 100X140 / 100*140
+      const sz = t.match(/(\d+)\s*[xX\*]\s*(\d+)/);
+      if (sz) {
+        orderState.width = parseInt(sz[1], 10);
+        orderState.length = parseInt(sz[2], 10);
+      }
+
+      // 수량: 3개 / 3장
+      const q = t.match(/(\d+)\s*(개|장)\b/);
+      if (q) orderState.quantity = parseInt(q[1], 10);
+    }
+
     async function send() {
       const input = document.getElementById("input");
-      const text = input.value.trim();
+      const textRaw = input.value;
+      const text = textRaw.trim();
       if (!text) return;
 
-      // 사용자 메시지 출력
       chat.innerHTML += `<div><b>나:</b> ${text}</div>`;
       input.value = "";
 
-      // 대화 기록 누적
-      messages.push({
-        role: "user",
-        content: text
-      });
+      // ✅ 프론트 상태 누적 업데이트
+      updateOrderStateFromText(text);
 
-      // 서버 호출
+      // ✅ 대화 기록 누적
+      messages.push({ role: "user", content: text });
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -82,15 +105,10 @@
 
       const data = await res.json();
 
-      // 상담원 응답 출력
       chat.innerHTML += `<div><b>상담원:</b> ${data.reply}</div>`;
       chat.scrollTop = chat.scrollHeight;
 
-      // 상담원 응답도 히스토리에 추가
-      messages.push({
-        role: "assistant",
-        content: data.reply
-      });
+      messages.push({ role: "assistant", content: data.reply });
     }
   </script>
 </body>
