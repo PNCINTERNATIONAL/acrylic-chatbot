@@ -9,29 +9,42 @@
 
   <div id="chat" style="border:1px solid #ccc; height:300px; overflow:auto; padding:10px;"></div>
 
-  <input id="input" placeholder="예: 투명 150x150 5T 2개" style="width:80%;"
+  <input id="input" placeholder="예: 투명 아크릴 150x150 5t 2개" style="width:80%;"
          onkeydown="if(event.key==='Enter') send();">
   <button onclick="send()">전송</button>
 
-<script>
-  const chat = document.getElementById("chat");
-  const messages = [];
+  <script>
+    // ✅ 대화 히스토리(핵심)
+    const messages = [];
 
-  async function send() {
-    const input = document.getElementById("input");
-    const text = input.value.trim();
-    if (!text) return;
+    async function send() {
+      const input = document.getElementById("input");
+      const chat = document.getElementById("chat");
 
-    chat.innerHTML += `<div><b>나:</b> ${text}</div>`;
-    input.value = "";
+      const text = input.value.trim();
+      if (!text) return;
 
-    // ✅ 대화 누적 (이게 핵심)
-    messages.push({ role: "user", content: text });
+      chat.innerHTML += `<div><b>나:</b> ${text}</div>`;
+      input.value = "";
 
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // ✅ message가 아니라
+      // ✅ 유저 메시지를 누적
+      messages.push({ role: "user", content: text });
 
+      // ✅ 서버로 messages를 보냄 (message ❌)
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages })
+      });
+
+      const data = await res.json();
+
+      chat.innerHTML += `<div><b>상담원:</b> ${data.reply}</div>`;
+      chat.scrollTop = chat.scrollHeight;
+
+      // ✅ 상담원 답변도 누적
+      messages.push({ role: "assistant", content: data.reply });
+    }
+  </script>
 </body>
 </html>
